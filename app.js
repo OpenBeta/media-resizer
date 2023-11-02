@@ -8,13 +8,17 @@ const PORT = 8080;
 const HOST = "0.0.0.0";
 const BASE_STORAGE_IMAGE_URL = "https://storage.googleapis.com";
 
-const getImage = (path) => fetch(path).then((res) => res.arrayBuffer());
+const getImage = (path) =>
+  fetch(path).then(async (r) => ({
+    data: await r.arrayBuffer(),
+    status: r.status,
+  }));
 const getFormat = (webp, avif) => {
   return avif ? "avif" : webp ? "webp" : "jpeg";
 };
 
 app.get("/healthy", (req, res) => {
-  res.send("yes");
+  res.send("yep.");
 });
 
 app.get("*", async (req, res) => {
@@ -34,13 +38,17 @@ app.get("*", async (req, res) => {
     const height = Number(searchParams.get("h")) || undefined;
     const format = getFormat(webp, avif);
 
-    const i = await getImage(href);
-    const processedImage = await sharp(i)
+    const { data, status } = await getImage(href);
+    if (status > 399) {
+      return res
+        .status(415)
+        .send("upstream server did not respond with a valid status code");
+    }
+
+    const processedImage = await sharp(data)
       .rotate()
       .resize({ width, height })
       .toFormat(format, { quality });
-
-    console.log(pathname, href);
 
     return res
       .set("Cache-Control", "public, max-age=15552000")
@@ -48,7 +56,7 @@ app.get("*", async (req, res) => {
       .type(`image/${format}`)
       .send(await processedImage.toBuffer());
   } catch (e) {
-    res.status(500).send(JSON.stringify(e));
+    return res.status(500).send(JSON.stringify(e));
   }
 });
 
