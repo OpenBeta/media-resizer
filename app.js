@@ -40,6 +40,7 @@ app.get("*", async (req, res) => {
 
   const i = await getImage(`${BASE_STORAGE_IMAGE_URL}${pathname}`);
   const processedImage = await sharp(i)
+    .rotate()
     .resize({ width, height })
     .toFormat(format, { quality });
   return res
