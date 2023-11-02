@@ -13,6 +13,9 @@ const getFormat = (webp, avif) => {
   return avif ? "avif" : webp ? "webp" : "jpeg";
 };
 
+app.get("/healthy", (req, res) => {
+  res.send("yes");
+});
 app.get("*", async (req, res) => {
   console.log(req.url);
   const { searchParams, pathname } = new URL(`http://noop.com${req.url}`);
