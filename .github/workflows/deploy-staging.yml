@@ -1,22 +1,17 @@
-name: Create and publish a Docker image
+name: Publish to dockerhub and perform a deploy on cloud run
 
-# Configures this workflow to run every time a change is pushed to the branch called `release`.
-# on:
-#   release:
-#     types: [published]
 on:
   push:
-    branches: ["build"]
+    branches: ["develop"]
 
-# There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
-    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+
     permissions:
       contents: read
       packages: write
-      id-token: "write"
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -33,7 +28,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: vnguyen/openbeta-media-server:latest
+          tags: vnguyen/openbeta-media-server:staging
 
       - id: "auth"
         name: "Authenticate to Google Cloud"
@@ -44,8 +39,8 @@ jobs:
       - id: "deploy"
         uses: "google-github-actions/deploy-cloudrun@v1"
         with:
-          service: "media-server"
-          image: "vnguyen/openbeta-media-server"
+          service: "staging-media-server"
+          image: "vnguyen/openbeta-media-server:staging"
 
       - name: "Use output"
         run: 'curl "${{ steps.deploy.outputs.url }}"'
