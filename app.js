@@ -6,7 +6,8 @@ const sharp = require("sharp");
 const app = express();
 const PORT = 8080;
 const HOST = "0.0.0.0";
-const BASE_STORAGE_IMAGE_URL = "https://storage.googleapis.com";
+const BASE_STORAGE_IMAGE_URL = "https://storage.googleapis.com/";
+const BUCKET = process.env.STORAGE_BUCKET || "openbeta-prod";
 
 const getImage = (path) =>
   fetch(path).then(async (r) => ({
@@ -24,7 +25,7 @@ app.get("/healthy", (req, res) => {
 app.get("*", async (req, res) => {
   try {
     const { searchParams, pathname, href } = new URL(
-      `${BASE_STORAGE_IMAGE_URL}${req.url}`,
+      `${BASE_STORAGE_IMAGE_URL}${BUCKET}${req.url}`,
     );
 
     if (!/\.(jpe?g|png|gif|webp)$/i.test(pathname)) {

@@ -41,6 +41,8 @@ jobs:
         with:
           service: "staging-media-server"
           image: "vnguyen/openbeta-media-server:staging"
+          env_vars: |
+            STORAGE_BUCKET=openbeta-staging
 
       - name: "Use output"
         run: 'curl "${{ steps.deploy.outputs.url }}"'
