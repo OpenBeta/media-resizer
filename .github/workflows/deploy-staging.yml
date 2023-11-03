@@ -2,7 +2,7 @@ name: Publish to dockerhub and perform a deploy on cloud run
 
 on:
   push:
-    branches: ["develop"]
+    branches: ["develop", "staging"]
 
 jobs:
   build-and-push-image:

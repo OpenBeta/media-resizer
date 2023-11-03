@@ -14,7 +14,7 @@ const getImage = (path) =>
     status: r.status,
   }));
 const getFormat = (webp, avif) => {
-  return avif ? "avif" : webp ? "webp" : "jpeg";
+  return webp ? "webp" : avif ? "avif" : "jpeg";
 };
 
 app.get("/healthy", (req, res) => {
@@ -45,16 +45,16 @@ app.get("*", async (req, res) => {
         .send("upstream server did not respond with a valid status code");
     }
 
-    const processedImage = await sharp(data)
-      .rotate()
-      .resize({ width, height })
-      .toFormat(format, { quality });
-
-    return res
+    res
       .set("Cache-Control", "public, max-age=15552000")
       .set("Vary", "Accept")
-      .type(`image/${format}`)
-      .send(await processedImage.toBuffer());
+      .type(`image/${format}`);
+
+    sharp(data)
+      .rotate()
+      .resize({ width, height })
+      .toFormat(format, { effort: 3, quality, progressive: true })
+      .pipe(res);
   } catch (e) {
     return res.status(500).send(JSON.stringify(e));
   }
