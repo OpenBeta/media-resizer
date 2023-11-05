@@ -41,6 +41,8 @@ jobs:
         with:
           service: "media-server"
           image: "vnguyen/openbeta-media-server"
+          env_vars: |
+            APP_VERSION=${{ github.sha }}
 
       - name: "Use output"
         run: 'curl "${{ steps.deploy.outputs.url }}"'

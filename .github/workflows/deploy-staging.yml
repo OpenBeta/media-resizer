@@ -43,6 +43,7 @@ jobs:
           image: "vnguyen/openbeta-media-server:staging"
           env_vars: |
             STORAGE_BUCKET=openbeta-staging
+            APP_VERSION=${{ github.sha }}
 
       - name: "Use output"
         run: 'curl "${{ steps.deploy.outputs.url }}"'
