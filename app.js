@@ -1,71 +1,77 @@
-const express = require("express");
-const sharp = require("sharp");
-const { Storage, ApiError } = require("@google-cloud/storage");
+addEventListener("fetch", (event) => {
+  event.respondWith(handleRequest(event.request));
+});
 
-const storage = new Storage();
-const app = express();
-
-const PORT = 8080;
-const HOST = "0.0.0.0";
-const BASE_STORAGE_IMAGE_URL = "https://storage.googleapis.com/";
-const BUCKET = process.env.STORAGE_BUCKET || "openbeta-prod";
-
-const getFormat = (webp, avif) => {
-  return webp ? "webp" : avif ? "avif" : "jpeg";
+const getBaseURL = (hostname, pathname, referer) => {
+  const isStaging = hostname === "stg-media.openbeta.io";
+  const isStatic = pathname.startsWith("/_next/static");
+  // handling static frontend content
+  if (isStatic) {
+    // we use the referer to keep vercel previews working
+    if (referer) {
+      return referer.replace(/\/$/, "");
+    }
+    // otherwise we route to the standard staging/prod base url
+    if (isStaging) {
+      return "https://stg.openbeta.io";
+    }
+    return "https://openbeta.io";
+  }
+  // handling other photos stored in google
+  if (isStaging) {
+    return "https://storage.googleapis.com/openbeta-staging";
+  }
+  return "https://storage.googleapis.com/openbeta-prod";
 };
 
-app.get("/healthy", (req, res) => {
-  res.send("yep.");
-});
+/**
+ * Fetch and log a request
+ * @param {Request} request
+ */
+async function handleRequest(request) {
+  // Parse request URL to get access to query string
+  const url = new URL(request.url);
 
-app.get("/version", (req, res) => {
-  res.send(process.env.APP_VERSION);
-});
-
-app.get("*", async (req, res) => {
-  try {
-    if (!/\.(jpe?g|png|gif|webp)$/i.test(req.path)) {
-      return res.status(400).send("Disallowed file extension");
-    }
-
-    const webp = req.headers.accept?.includes("image/webp");
-    const avif = req.headers.accept?.includes("image/avif");
-    const quality = Number(req.query.q) || 90;
-    const width = Number(req.query.w) || undefined;
-    const height = Number(req.query.h) || undefined;
-    const format = getFormat(webp, avif);
-
-    res
-      .set("Cache-Control", "public, max-age=15552000")
-      .set("Vary", "Accept")
-      .type(`image/${format}`);
-
-    const pipeline = sharp();
-
-    storage
-      .bucket(BUCKET)
-      .file(req.path.slice(1)) // remove leading slash
-      .createReadStream()
-      .on("error", function (e) {
-        if (e instanceof ApiError) {
-          if (e.message?.includes("No such object"))
-            return res.status(404).end();
-        }
-        return res.status(500).send(JSON.stringify(e));
-      })
-      .pipe(pipeline);
-
-    pipeline
-      .rotate()
-      .resize({ width, height })
-      .toFormat(format, { effort: 3, quality, progressive: true })
-      .pipe(res);
-  } catch (e) {
-    return res.status(500).send(JSON.stringify(e));
+  if (url.pathname.length < 2)
+    return new Response("Missing image", { status: 400 });
+  if (!/\.(jpe?g|png|gif|webp)$/i.test(url.pathname)) {
+    return new Response("Disallowed file extension", { status: 400 });
   }
-});
 
-const port = parseInt(process.env.PORT) || PORT;
-app.listen(port, HOST, () => {
-  console.log(`Running on http://${HOST}:${port}`);
-});
+  // Cloudflare-specific options are in the cf object.
+  let options = { cf: { image: {} } };
+
+  // Copy parameters from query string to request options.
+  // You can implement various different parameters here.
+  if (url.searchParams.has("w"))
+    options.cf.image.width = url.searchParams.get("w");
+  if (url.searchParams.has("q"))
+    options.cf.image.quality = url.searchParams.get("q");
+  if (url.searchParams.has("h"))
+    options.cf.image.height = url.searchParams.get("h");
+
+  // Your Worker is responsible for automatic format negotiation. Check the Accept header.
+  const accept = request.headers.get("Accept");
+  if (/image\/avif/.test(accept)) {
+    options.cf.image.format = "avif";
+  } else if (/image\/webp/.test(accept)) {
+    options.cf.image.format = "webp";
+  }
+
+  const baseURL = getBaseURL(
+    url.hostname,
+    url.pathname,
+    request.headers.get("referer"),
+  );
+  const imageURL = `${baseURL}${url.pathname}`;
+
+  // Build a request that passes through request headers
+  const imageRequest = new Request(imageURL, {
+    headers: request.headers,
+  });
+
+  let response = await fetch(imageRequest, options);
+  response = new Response(response.body, response);
+  response.headers.set("Cache-Control", "public, max-age=15552000");
+  return response;
+}

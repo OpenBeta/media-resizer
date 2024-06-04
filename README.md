@@ -3,13 +3,27 @@
 This project has been replaced by the following CloudFlare worker:
 
 ```
-
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
 });
 
-const getBucket = (hostname) => {
-  if (hostname === "stg-media.openbeta.io") {
+const getBaseURL = (hostname, pathname, referer) => {
+  const isStaging = hostname === "stg-media.openbeta.io"
+  const isStatic = pathname.startsWith("/_next/static")
+  // handling static frontend content
+  if (isStatic) {
+    // we use the referer to keep vercel previews working
+    if (referer){
+      return referer.replace(/\/$/, "");
+    }
+    // otherwise we route to the standard staging/prod base url
+    if (isStaging){
+      return "https://stg.openbeta.io";
+    }
+    return "https://openbeta.io";
+  }
+  // handling other photos stored in google
+  if (isStaging) {
     return "https://storage.googleapis.com/openbeta-staging";
   }
   return "https://storage.googleapis.com/openbeta-prod";
@@ -49,8 +63,12 @@ async function handleRequest(request) {
     options.cf.image.format = "webp";
   }
 
-  const bucket = getBucket(url.hostname);
-  const imageURL = `${bucket}${url.pathname}`;
+  const baseURL = getBaseURL(
+    url.hostname,
+    url.pathname,
+    request.headers.get("referer"),
+  );
+  const imageURL = `${baseURL}${url.pathname}`;
 
   // Build a request that passes through request headers
   const imageRequest = new Request(imageURL, {
